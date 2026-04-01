@@ -15,9 +15,28 @@ poetry run python generate_quiniela.py
 
 This produces `quiniela_mundial_2026.xlsx`.
 
+## Project layout
+
+```
+copa_de_la_vida/
+├── generate_quiniela.py   # entry point (thin shim)
+├── quiniela_mundial_2026.xlsx
+├── pyproject.toml
+├── poetry.lock
+└── src/
+    ├── data.py            # all tournament data (groups, fixtures, schedule)
+    ├── styles.py          # colour palette, style helpers, formula builders
+    ├── generate.py        # orchestrates all tabs
+    └── sheets/
+        ├── group_stage.py # Tab 1 — Fase de Grupos
+        ├── clasificados.py# Tab 2 — Clasificados (formula-driven standings)
+        ├── bracket.py     # Tab 3 — Knockout Bracket
+        └── references.py  # Tab 4 — Referencias
+```
+
 ## How to use the spreadsheet
 
-### Tab 1 — Fase de Grupos (Group Stage)
+### Tab 1 — Fase de Grupos
 
 - For each of the 12 groups (A–L), the match schedule is pre-filled with dates, times, venues and team names.
 - **Enter goals** in the yellow cells (one per team per match). Only integers ≥ 0 are accepted.
@@ -27,15 +46,19 @@ This produces `quiniela_mundial_2026.xlsx`.
   - 🟨 **Amber** — 3rd place (may qualify as one of the 8 best third-place finishers)
   - 🟥 **Red** — 4th place (eliminated)
 
-### Tab 2 — Bracket (Knockout Phase)
+### Tab 2 — Clasificados
 
-- Covers Round of 32 → Round of 16 → Quarter-finals → Semi-finals → **Final** (centred).
-- The Third-Place match is shown below the Final.
-- **Enter goals** (90 min + extra time combined) in the yellow cells.
+Auto-computed summary of which team finished 1st, 2nd, 3rd and 4th in each group. Updates live as you enter group-stage scores. No input needed here.
+
+### Tab 3 — Bracket (Knockout Phase)
+
+- Covers Round of 32 → Round of 16 → Quarter-finals → Semi-finals → **Final** (centred), plus the Third-Place match below it.
+- **Team names are formula-driven**: as soon as group scores are entered, the bracket auto-fills with actual country names (France, Brazil, etc.) all the way to the champion banner.
+- **Enter goals** (90 min + extra time combined) in the yellow cells. The winner's name propagates to the next round automatically.
 - The **blue-grey row** below each match is for penalty shootout scores — fill these in only if the match is tied after extra time. Leave blank otherwise.
-- Team placeholders (e.g. `A1`, `B2`, `3rd*`) indicate which group-stage position advances; update them manually as the tournament progresses.
+- **Blue-grey team cells** labelled `Enter 3rd ▶` are the 8 best-3rd-place slots; enter the team names manually after all groups have completed.
 
-### Tab 3 — Referencias
+### Tab 4 — Referencias
 
 Sources used to build the fixture data, groups and schedule.
 
