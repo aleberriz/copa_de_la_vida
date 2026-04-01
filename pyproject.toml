@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "copa-de-la-vida"
+version = "0.1.0"
+description = "Football pools (don't call it soccer)"
+authors = []
+license = "MIT"
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.10"
+openpyxl = "^3.1"
+
+[tool.poetry.scripts]
+generate = "generate_quiniela:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
