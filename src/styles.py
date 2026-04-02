@@ -127,26 +127,31 @@ def winner_formula(tl: str, gl: str, gr: str, tr: str,
     """
     Excel formula that resolves to the winner of a knockout match.
     All args are absolute cell reference strings (e.g. '$A$5').
-    Returns '—' when no scores entered yet; 'TBD' if tied with no penalties.
+    Returns '—' when scores or team names are not yet entered;
+    'TBD' if tied in regular time with no valid penalty scores.
     """
     return (
-        f'=IF(AND({gl}<>"",{gr}<>""),'
+        f'=IF(AND({gl}<>"",{gr}<>"",{tl}<>"",{tr}<>""),'
         f'IF({gl}>{gr},{tl},'
         f'IF({gr}>{gl},{tr},'
         f'IF(AND({pl}<>"",{pr}<>""),'
-        f'IF({pl}>{pr},{tl},{tr}),'
+        f'IF({pl}>{pr},{tl},IF({pl}<{pr},{tr},"TBD")),'
         f'"TBD"))),"—")'
     )
 
 def loser_formula(tl: str, gl: str, gr: str, tr: str,
                   pl: str, pr: str) -> str:
-    """Excel formula that resolves to the loser of a knockout match."""
+    """
+    Excel formula that resolves to the loser of a knockout match.
+    Returns '—' when scores or team names are not yet entered;
+    'TBD' if tied in regular time with no valid penalty scores.
+    """
     return (
-        f'=IF(AND({gl}<>"",{gr}<>""),'
+        f'=IF(AND({gl}<>"",{gr}<>"",{tl}<>"",{tr}<>""),'
         f'IF({gl}<{gr},{tl},'
         f'IF({gr}<{gl},{tr},'
         f'IF(AND({pl}<>"",{pr}<>""),'
-        f'IF({pl}<{pr},{tl},{tr}),'
+        f'IF({pl}<{pr},{tl},IF({pl}>{pr},{tr},"TBD")),'
         f'"TBD"))),"—")'
     )
 
