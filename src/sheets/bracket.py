@@ -54,7 +54,7 @@ MatchInfo = dict  # keys: tl, tr, gl, gr, pl, pr  (absolute cell refs)
 
 
 def build_bracket(wb: Workbook,
-                  qualified_refs: dict[str, dict[str, str]]) -> None:
+                  qualified_refs: dict[str, dict[str, str]]) -> dict:
     """
     Build the Bracket sheet.
 
@@ -62,6 +62,13 @@ def build_bracket(wb: Workbook,
     ----------
     qualified_refs
         Output of build_clasificados — maps group → {'1st': formula, '2nd': formula}.
+
+    Returns
+    -------
+    dict with keys:
+        'third_place_cells' : list[str]  — absolute coords of the 8 manual 3rd-place
+                              team-name input cells (e.g. ['$D$9', ...]).
+        'pen_cells'         : list[str]  — absolute coords of all penalty score cells.
     """
     ws = wb.create_sheet("Bracket")
     ws.sheet_view.showGridLines = False
@@ -89,6 +96,10 @@ def build_bracket(wb: Workbook,
     _write_legend_row(ws)
     _write_round_headers(ws, sf_row, final_row)
 
+    # Accumulators for cell tracking
+    third_place_cells: list[str] = []
+    pen_cells: list[str] = []
+
     # ── Resolve R32 team formulas from qualified_refs ────────────────────
     def _team_ref(code: str) -> str | None:
         """
@@ -108,6 +119,8 @@ def build_bracket(wb: Workbook,
             team_l=_team_ref(tl_code),
             team_r=_team_ref(tr_code),
             date=date, venue=venue,
+            _third_place_out=third_place_cells,
+            _pen_cells_out=pen_cells,
         )
         r32l_info.append(info)
 
@@ -119,6 +132,8 @@ def build_bracket(wb: Workbook,
             team_l=_team_ref(tl_code),
             team_r=_team_ref(tr_code),
             date=date, venue=venue,
+            _third_place_out=third_place_cells,
+            _pen_cells_out=pen_cells,
         )
         r32r_info.append(info)
 
@@ -130,6 +145,7 @@ def build_bracket(wb: Workbook,
             team_l=winner_formula(**r32l_info[a]),
             team_r=winner_formula(**r32l_info[b]),
             date=date, venue=venue,
+            _pen_cells_out=pen_cells,
         )
         r16l_info.append(info)
 
@@ -141,6 +157,7 @@ def build_bracket(wb: Workbook,
             team_l=winner_formula(**r32r_info[a]),
             team_r=winner_formula(**r32r_info[b]),
             date=date, venue=venue,
+            _pen_cells_out=pen_cells,
         )
         r16r_info.append(info)
 
@@ -152,6 +169,7 @@ def build_bracket(wb: Workbook,
             team_l=winner_formula(**r16l_info[a]),
             team_r=winner_formula(**r16l_info[b]),
             date=date, venue=venue,
+            _pen_cells_out=pen_cells,
         )
         qfl_info.append(info)
 
@@ -163,6 +181,7 @@ def build_bracket(wb: Workbook,
             team_l=winner_formula(**r16r_info[a]),
             team_r=winner_formula(**r16r_info[b]),
             date=date, venue=venue,
+            _pen_cells_out=pen_cells,
         )
         qfr_info.append(info)
 
@@ -173,6 +192,7 @@ def build_bracket(wb: Workbook,
         team_l=winner_formula(**qfl_info[a]),
         team_r=winner_formula(**qfl_info[b]),
         date=sf_date_l, venue=sf_venue_l,
+        _pen_cells_out=pen_cells,
     )
 
     # ── Draw SF — right ──────────────────────────────────────────────────
@@ -182,6 +202,7 @@ def build_bracket(wb: Workbook,
         team_l=winner_formula(**qfr_info[a]),
         team_r=winner_formula(**qfr_info[b]),
         date=sf_date_r, venue=sf_venue_r,
+        _pen_cells_out=pen_cells,
     )
 
     # ── Draw Final ───────────────────────────────────────────────────────
@@ -192,6 +213,7 @@ def build_bracket(wb: Workbook,
         team_r=winner_formula(**sfr_info),
         date=fin_date, venue=fin_venue,
         is_final=True,
+        _pen_cells_out=pen_cells,
     )
 
     # Champion banner (formula-driven team name)
@@ -224,7 +246,10 @@ def build_bracket(wb: Workbook,
         team_l=loser_formula(**sfl_info),
         team_r=loser_formula(**sfr_info),
         date=tp_date, venue=tp_venue,
+        _pen_cells_out=pen_cells,
     )
+
+    return {"third_place_cells": third_place_cells, "pen_cells": pen_cells}
 
 
 # ---------------------------------------------------------------------------
@@ -239,6 +264,8 @@ def _draw_match(
     date: str,
     venue: str,
     is_final: bool = False,
+    _third_place_out: list | None = None,
+    _pen_cells_out: list | None = None,
 ) -> MatchInfo:
     """
     Draw a single knockout match (label row + match row + penalty row).
@@ -269,10 +296,13 @@ def _draw_match(
     # Team left
     tl_cell = ws.cell(row=mrow, column=tl_col)
     if team_l is None:
-        # Manual input (best-3rd-place slot)
-        tl_cell.value = "Enter 3rd ▶"
+        # Manual input slot for best-3rd-place qualifier — left blank so
+        # winner_formula returns "—" until the user types a team name.
+        tl_cell.value = ""
         tl_cell.fill = fill(PEN_BG)
-        tl_cell.font = Font(name="Calibri", size=8, italic=True, color="8EAADB")
+        tl_cell.font = Font(name="Calibri", size=9, bold=True, color="8EAADB")
+        if _third_place_out is not None:
+            _third_place_out.append(tl_cell.coordinate)
     else:
         tl_cell.value = team_l
         tl_cell.fill = tbg
@@ -292,9 +322,12 @@ def _draw_match(
     # Team right
     tr_cell = ws.cell(row=mrow, column=tr_col)
     if team_r is None:
-        tr_cell.value = "◀ Enter 3rd"
+        # Manual input slot — same as tl None case above.
+        tr_cell.value = ""
         tr_cell.fill = fill(PEN_BG)
-        tr_cell.font = Font(name="Calibri", size=8, italic=True, color="8EAADB")
+        tr_cell.font = Font(name="Calibri", size=9, bold=True, color="8EAADB")
+        if _third_place_out is not None:
+            _third_place_out.append(tr_cell.coordinate)
     else:
         tr_cell.value = team_r
         tr_cell.fill = tbg
@@ -319,6 +352,8 @@ def _draw_match(
 
     pl_cell = pen_cell(ws, prow, gl_col)
     pr_cell = pen_cell(ws, prow, gr_col)
+    if _pen_cells_out is not None:
+        _pen_cells_out.extend([pl_cell.coordinate, pr_cell.coordinate])
 
     pr_lbl = ws.cell(row=prow, column=tr_col, value="← Pen")
     pr_lbl.font = Font(name="Calibri", size=7, italic=True, color="607D8B")
@@ -353,8 +388,8 @@ def _write_legend_row(ws) -> None:
         row=3, column=1,
         value=(
             "  ✏️ Yellow cells = goals (90 min + ET combined)  ·  "
-            "Blue-grey rows = Penalty shootout score (optional — only if tied after ET)  ·  "
-            "Blue-grey team cells = best 3rd-place slot — enter manually after group stage"
+            "Blue-grey rows = Penalty shootout score (only if tied after ET)  ·  "
+            "Blue-grey team cells = best 3rd-place qualifier — type the country name after the group stage"
         ),
     )
     leg.font = Font(name="Calibri", size=8, italic=True, color="8EAADB")
