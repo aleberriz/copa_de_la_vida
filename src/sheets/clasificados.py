@@ -151,8 +151,8 @@ def build_clasificados(wb: Workbook,
         row=note_row, column=1,
         value=(
             "  ⚠️  The 8 best 3rd-place finishers also advance to the Round of 32. "
-            "Those slots are determined after all groups complete and must be "
-            "entered manually in the Bracket tab."
+            "Their bracket slots are resolved automatically via the hidden "
+            "Terceros sheet (FIFA Annex C, 495 combinations)."
         ),
     )
     n.font = Font(name="Calibri", size=9, italic=True, color=AMBER_FONT)

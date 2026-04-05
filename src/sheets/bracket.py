@@ -3,7 +3,7 @@ Builds the 'Bracket' worksheet.
 
 Team names in all rounds are driven by Excel formulas:
   • R32 group slots  → reference the Clasificados sheet
-  • R32 3rd-place    → manual input cells
+  • R32 3rd-place    → auto-resolved via the hidden Terceros sheet
   • R16 onwards      → winner_formula() referencing the previous round's cells
   • Final winner     → winner_formula() on the two SF cells
   • 3rd-place match  → loser_formula() on the two SF cells
@@ -54,7 +54,8 @@ MatchInfo = dict  # keys: tl, tr, gl, gr, pl, pr  (absolute cell refs)
 
 
 def build_bracket(wb: Workbook,
-                  qualified_refs: dict[str, dict[str, str]]) -> dict:
+                  qualified_refs: dict[str, dict[str, str]],
+                  third_place_refs: dict[str, str]) -> dict:
     """
     Build the Bracket sheet.
 
@@ -62,13 +63,14 @@ def build_bracket(wb: Workbook,
     ----------
     qualified_refs
         Output of build_clasificados — maps group → {'1st': formula, '2nd': formula}.
+    third_place_refs
+        Output of build_third_place — maps slot codes like '3rd:1E' → formula
+        strings referencing the hidden Terceros sheet.
 
     Returns
     -------
-    dict with keys:
-        'third_place_cells' : list[str]  — absolute coords of the 8 manual 3rd-place
-                              team-name input cells (e.g. ['$D$9', ...]).
-        'pen_cells'         : list[str]  — absolute coords of all penalty score cells.
+    dict with key:
+        'pen_cells' : list[str]  — absolute coords of all penalty score cells.
     """
     ws = wb.create_sheet("Bracket")
     ws.sheet_view.showGridLines = False
@@ -96,17 +98,15 @@ def build_bracket(wb: Workbook,
     _write_legend_row(ws)
     _write_round_headers(ws, sf_row, final_row)
 
-    # Accumulators for cell tracking
-    third_place_cells: list[str] = []
     pen_cells: list[str] = []
 
-    # ── Resolve R32 team formulas from qualified_refs ────────────────────
+    # ── Resolve R32 team formulas from qualified_refs / third_place_refs
     def _team_ref(code: str) -> str | None:
         """
-        Convert e.g. 'A1' → formula string, '3rd*' → None (manual input).
+        Convert e.g. 'A1' → formula string, '3rd:1E' → formula from Terceros.
         """
-        if code == "3rd*":
-            return None
+        if code.startswith("3rd:"):
+            return third_place_refs[code]
         grp, rank = code[0], code[1]
         key = "1st" if rank == "1" else "2nd"
         return qualified_refs[grp][key]
@@ -119,7 +119,6 @@ def build_bracket(wb: Workbook,
             team_l=_team_ref(tl_code),
             team_r=_team_ref(tr_code),
             date=date, venue=venue,
-            _third_place_out=third_place_cells,
             _pen_cells_out=pen_cells,
         )
         r32l_info.append(info)
@@ -132,7 +131,6 @@ def build_bracket(wb: Workbook,
             team_l=_team_ref(tl_code),
             team_r=_team_ref(tr_code),
             date=date, venue=venue,
-            _third_place_out=third_place_cells,
             _pen_cells_out=pen_cells,
         )
         r32r_info.append(info)
@@ -249,7 +247,7 @@ def build_bracket(wb: Workbook,
         _pen_cells_out=pen_cells,
     )
 
-    return {"third_place_cells": third_place_cells, "pen_cells": pen_cells}
+    return {"pen_cells": pen_cells}
 
 
 # ---------------------------------------------------------------------------
@@ -259,12 +257,11 @@ def _draw_match(
     ws,
     row: int,
     cols: tuple[int, int, int, int],
-    team_l,         # str formula / literal, or None (→ manual input)
-    team_r,         # str formula / literal, or None (→ manual input)
+    team_l,         # str formula / literal
+    team_r,         # str formula / literal
     date: str,
     venue: str,
     is_final: bool = False,
-    _third_place_out: list | None = None,
     _pen_cells_out: list | None = None,
 ) -> MatchInfo:
     """
@@ -295,19 +292,10 @@ def _draw_match(
 
     # Team left
     tl_cell = ws.cell(row=mrow, column=tl_col)
-    if team_l is None:
-        # Manual input slot for best-3rd-place qualifier — left blank so
-        # winner_formula returns "—" until the user types a team name.
-        tl_cell.value = ""
-        tl_cell.fill = fill(PEN_BG)
-        tl_cell.font = Font(name="Calibri", size=9, bold=True, color="8EAADB")
-        if _third_place_out is not None:
-            _third_place_out.append(tl_cell.coordinate)
-    else:
-        tl_cell.value = team_l
-        tl_cell.fill = tbg
-        tl_cell.font = Font(name="Calibri", size=12 if is_final else 9,
-                            bold=True, color=GOLD if is_final else WHITE)
+    tl_cell.value = team_l
+    tl_cell.fill = tbg
+    tl_cell.font = Font(name="Calibri", size=12 if is_final else 9,
+                        bold=True, color=GOLD if is_final else WHITE)
     tl_cell.alignment = right_align()
     tl_cell.border = Border(
         top=_side("medium" if is_final else "thin", gold_c),
@@ -321,18 +309,10 @@ def _draw_match(
 
     # Team right
     tr_cell = ws.cell(row=mrow, column=tr_col)
-    if team_r is None:
-        # Manual input slot — same as tl None case above.
-        tr_cell.value = ""
-        tr_cell.fill = fill(PEN_BG)
-        tr_cell.font = Font(name="Calibri", size=9, bold=True, color="8EAADB")
-        if _third_place_out is not None:
-            _third_place_out.append(tr_cell.coordinate)
-    else:
-        tr_cell.value = team_r
-        tr_cell.fill = tbg
-        tr_cell.font = Font(name="Calibri", size=12 if is_final else 9,
-                            bold=True, color=GOLD if is_final else WHITE)
+    tr_cell.value = team_r
+    tr_cell.fill = tbg
+    tr_cell.font = Font(name="Calibri", size=12 if is_final else 9,
+                        bold=True, color=GOLD if is_final else WHITE)
     tr_cell.alignment = left_align()
     tr_cell.border = Border(
         top=_side("medium" if is_final else "thin", gold_c),
@@ -389,7 +369,7 @@ def _write_legend_row(ws) -> None:
         value=(
             "  ✏️ Yellow cells = goals (90 min + ET combined)  ·  "
             "Blue-grey rows = Penalty shootout score (only if tied after ET)  ·  "
-            "Blue-grey team cells = best 3rd-place qualifier — type the country name after the group stage"
+            "Best 3rd-place qualifiers are resolved automatically from group-stage results"
         ),
     )
     leg.font = Font(name="Calibri", size=8, italic=True, color="8EAADB")

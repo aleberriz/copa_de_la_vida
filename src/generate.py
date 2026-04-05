@@ -13,6 +13,7 @@ from src.sheets.bracket import build_bracket
 from src.sheets.clasificados import build_clasificados
 from src.sheets.group_stage import build_group_stage
 from src.sheets.references import build_references
+from src.sheets.third_place import build_third_place
 
 OUTPUT_FILE = Path("quiniela_mundial_2026.xlsx")
 
@@ -27,8 +28,11 @@ def main() -> None:
     print("Building Clasificados tab…")
     qualified_refs = build_clasificados(wb, standings_start)
 
+    print("Building Terceros (best third-place) helper sheet…")
+    third_place_refs = build_third_place(wb, standings_start)
+
     print("Building bracket tab…")
-    build_bracket(wb, qualified_refs)
+    build_bracket(wb, qualified_refs, third_place_refs)
 
     print("Building references tab…")
     build_references(wb)
